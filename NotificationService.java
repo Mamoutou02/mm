@@ -10,12 +10,14 @@ import java.util.List;
 public class NotificationService implements INotificationService {
     // Connexion à la base de données
     private Connection connection;
+    private EmailSender emailSender;
 
     /**
      * Constructeur : initialise la connexion à la base de données
      */
     public NotificationService() {
         this.connection = DatabaseConfig.getConnection();
+        this.emailSender = new EmailSender();
     }
 
     /**
@@ -58,34 +60,44 @@ public class NotificationService implements INotificationService {
      */
     public void addEmployee(Employee employee) {
         try {
-            connection.setAutoCommit(false); // Début de la transaction
+            // Vérifier si l'email existe déjà
+            PreparedStatement checkStmt = connection.prepareStatement(
+                "SELECT id FROM utilisateurs WHERE email = ?"
+            );
+            checkStmt.setString(1, employee.getEmail());
+            ResultSet rs = checkStmt.executeQuery();
             
-            // Ajout dans la table utilisateurs
-            PreparedStatement stmt = connection.prepareStatement(
+            if (rs.next()) {
+                throw new IllegalArgumentException("Un utilisateur avec cet email existe déjà.");
+            }
+
+            connection.setAutoCommit(false);
+
+            // Ajouter dans la table utilisateurs
+            PreparedStatement userStmt = connection.prepareStatement(
                 "INSERT INTO utilisateurs (id, nom, email, mot_de_passe, type_utilisateur) VALUES (?, ?, ?, ?, 'EMPLOYE')"
             );
-            stmt.setString(1, employee.getId());
-            stmt.setString(2, employee.getName());
-            stmt.setString(3, employee.getEmail());
-            stmt.setString(4, employee.getPassword());
-            stmt.executeUpdate();
+            userStmt.setString(1, employee.getId());
+            userStmt.setString(2, employee.getName());
+            userStmt.setString(3, employee.getEmail());
+            userStmt.setString(4, employee.getPassword());
+            userStmt.executeUpdate();
 
-            // Ajout dans la table employes
-            stmt = connection.prepareStatement(
-                "INSERT INTO employes (id_utilisateur, est_abonne) VALUES (?, ?)"
+            // Ajouter dans la table employes
+            PreparedStatement empStmt = connection.prepareStatement(
+                "INSERT INTO employes (id_utilisateur, est_abonne) VALUES (?, false)"
             );
-            stmt.setString(1, employee.getId());
-            stmt.setBoolean(2, employee.isSubscribed());
-            stmt.executeUpdate();
+            empStmt.setString(1, employee.getId());
+            empStmt.executeUpdate();
 
-            connection.commit(); // Validation de la transaction
+            connection.commit();
         } catch (SQLException e) {
             try {
-                connection.rollback(); // Annulation en cas d'erreur
+                connection.rollback();
             } catch (SQLException ex) {
                 System.err.println("Erreur lors du rollback : " + ex.getMessage());
             }
-            System.err.println("Erreur: " + e.getMessage());
+            throw new RuntimeException("Erreur lors de l'ajout de l'employé : " + e.getMessage());
         }
     }
 
@@ -146,7 +158,7 @@ public class NotificationService implements INotificationService {
                 );
                 stmt.setString(1, employee.getId());
                 stmt.executeUpdate();
-                employee.setSubscribed(true);
+            employee.setSubscribed(true);
             } catch (SQLException e) {
                 System.err.println("Erreur: " + e.getMessage());
             }
@@ -167,7 +179,7 @@ public class NotificationService implements INotificationService {
                 );
                 stmt.setString(1, employee.getId());
                 stmt.executeUpdate();
-                employee.setSubscribed(false);
+            employee.setSubscribed(false);
             } catch (SQLException e) {
                 System.err.println("Erreur: " + e.getMessage());
             }
@@ -185,7 +197,7 @@ public class NotificationService implements INotificationService {
         try {
             // Vérifier si l'expéditeur est un admin
             PreparedStatement checkStmt = connection.prepareStatement(
-                "SELECT type_utilisateur, nom FROM utilisateurs WHERE id = ? AND type_utilisateur = 'ADMIN'"
+                "SELECT type_utilisateur, nom, email FROM utilisateurs WHERE id = ? AND type_utilisateur = 'ADMIN'"
             );
             checkStmt.setString(1, senderId);
             ResultSet rs = checkStmt.executeQuery();
@@ -195,6 +207,7 @@ public class NotificationService implements INotificationService {
             }
 
             String senderName = rs.getString("nom");
+            String senderEmail = rs.getString("email");
             connection.setAutoCommit(false); // Début de la transaction
 
             // Enregistrer la notification
@@ -211,17 +224,38 @@ public class NotificationService implements INotificationService {
             if (generatedKeys.next()) {
                 int notificationId = generatedKeys.getInt(1);
 
+                // Récupérer les emails des employés abonnés
+                PreparedStatement empStmt = connection.prepareStatement(
+                    "SELECT u.email FROM utilisateurs u " +
+                    "JOIN employes e ON u.id = e.id_utilisateur " +
+                    "WHERE e.est_abonne = true AND u.id != ?"
+                );
+                empStmt.setString(1, senderId);
+                ResultSet empRs = empStmt.executeQuery();
+
                 // Envoyer aux employés abonnés
                 PreparedStatement recipientStmt = connection.prepareStatement(
                     "INSERT INTO notifications_recues (id_notification, id_destinataire) " +
-                    "SELECT ?, e.id_utilisateur FROM employes e WHERE e.est_abonne = true"
+                    "SELECT ?, e.id_utilisateur FROM employes e " +
+                    "WHERE e.est_abonne = true AND e.id_utilisateur != ?"
                 );
                 recipientStmt.setInt(1, notificationId);
+                recipientStmt.setString(2, senderId);
                 recipientStmt.executeUpdate();
+
+                // Envoyer les emails aux employés abonnés
+                while (empRs.next()) {
+                    String recipientEmail = empRs.getString("email");
+                    emailSender.sendEmail(
+                        recipientEmail,
+                        "Nouvelle notification de " + senderName,
+                        "Message de " + senderName + " :\n\n" + message
+                    );
+                }
 
                 // Notifier les employés en temps réel
                 for (Employee employee : getEmployees()) {
-                    if (employee.isSubscribed()) {
+                    if (employee.isSubscribed() && !employee.getId().equals(senderId)) {
                         employee.receiveNotification(message, senderName);
                     }
                 }

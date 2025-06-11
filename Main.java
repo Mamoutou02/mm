@@ -1,4 +1,5 @@
 import java.util.Scanner;
+import java.util.List;
 
 /**
  * Classe principale pour tester le système de notification
@@ -51,7 +52,7 @@ public class Main {
         User user = notificationService.authenticate(email, password);
         if (user instanceof Admin) {
             Admin admin = (Admin) user;
-            handleAdminMenu(admin);
+            showAdminMenu(admin, notificationService, scanner);
         } else {
             System.out.println("Identifiants administrateur invalides !");
         }
@@ -72,51 +73,34 @@ public class Main {
         }
     }
 
-    private static void handleAdminMenu(Admin admin) {
+    private static void showAdminMenu(Admin admin, NotificationService notificationService, Scanner scanner) {
         while (true) {
-            System.out.println("\n=== Menu Administrateur ===");
+            System.out.println("\nMenu Administrateur");
             System.out.println("1. Ajouter un employé");
-            System.out.println("2. Lister les employés");
-            System.out.println("3. Vérifier l'abonnement d'un employé");
-            System.out.println("4. Désabonner un employé");
-            System.out.println("5. Envoyer une notification");
-            System.out.println("6. Voir l'historique des notifications envoyées");
-            System.out.println("7. Déconnexion");
+            System.out.println("2. Voir la liste des employés");
+            System.out.println("3. Désabonner un employé");
+            System.out.println("4. Envoyer une notification");
+            System.out.println("5. Voir l'historique des notifications envoyées");
+            System.out.println("6. Quitter");
             System.out.print("Choix : ");
 
-            int choice = scanner.nextInt();
-            scanner.nextLine(); // Consommer le retour à la ligne
+            int choice = Integer.parseInt(scanner.nextLine());
 
             switch (choice) {
                 case 1:
-                    addNewEmployee();
+                    addNewEmployee(notificationService);
                     break;
                 case 2:
-                    System.out.println("\nListe des employés :");
-                    for (Employee emp : notificationService.getEmployees()) {
-                        System.out.println("- " + emp.getName() + " (" + emp.getEmail() + ") - " +
-                                (emp.isSubscribed() ? "Abonné" : "Non abonné"));
-                    }
+                    showEmployeeList(notificationService);
                     break;
                 case 3:
-                    System.out.print("Email de l'employé : ");
-                    String emailCheck = scanner.nextLine();
-                    for (Employee emp : notificationService.getEmployees()) {
-                        if (emp.getEmail().equals(emailCheck)) {
-                            System.out.println(emp.getName() + " est " +
-                                    (emp.isSubscribed() ? "abonné" : "non abonné"));
-                            break;
-                        }
-                    }
-                    break;
-                case 4:
                     System.out.print("Email de l'employé à désabonner : ");
                     String emailUnsubscribe = scanner.nextLine();
                     boolean found = false;
                     for (Employee emp : notificationService.getEmployees()) {
                         if (emp.getEmail().equals(emailUnsubscribe)) {
                             if (emp.isSubscribed()) {
-                                notificationService.adminUnsubscribeEmployee(admin, emp);
+                                notificationService.unsubscribe(emp);
                                 System.out.println("L'employé a été désabonné avec succès.");
                             } else {
                                 System.out.println("Cet employé n'est pas abonné.");
@@ -129,16 +113,15 @@ public class Main {
                         System.out.println("Aucun employé trouvé avec cet email.");
                     }
                     break;
-                case 5:
+                case 4:
                     System.out.print("Message : ");
                     String message = scanner.nextLine();
                     notificationService.notifyObservers(message, admin.getId());
-                    System.out.println("Notification envoyée !");
                     break;
-                case 6:
+                case 5:
                     admin.showSentNotifications();
                     break;
-                case 7:
+                case 6:
                     return;
                 default:
                     System.out.println("Choix invalide !");
@@ -146,20 +129,52 @@ public class Main {
         }
     }
 
-    private static void addNewEmployee() {
-        System.out.println("\n=== Ajout d'un nouvel employé ===");
-        System.out.print("ID (numéro unique) : ");
-        String id = scanner.nextLine();
+    private static void showEmployeeList(NotificationService notificationService) {
+        System.out.println("\nListe des employés :");
+        List<Employee> employees = notificationService.getEmployees();
+        if (employees.isEmpty()) {
+            System.out.println("Aucun employé enregistré.");
+        } else {
+            for (Employee emp : employees) {
+                System.out.println("- " + emp.getName() + " (" + emp.getEmail() + ") - " +
+                        (emp.isSubscribed() ? "Abonné" : "Non abonné"));
+            }
+        }
+    }
+
+    private static void addNewEmployee(NotificationService notificationService) {
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("\nAjout d'un nouvel employé");
+        
+        String id;
+        while (true) {
+            System.out.print("ID (2 chiffres maximum) : ");
+            String input = scanner.nextLine();
+            if (input.matches("^\\d{1,2}$")) {
+                id = "EMP" + input;
+                break;
+            } else {
+                System.out.println("Erreur : Veuillez entrer un nombre entre 0 et 99");
+            }
+        }
+        
         System.out.print("Nom : ");
         String name = scanner.nextLine();
+        
         System.out.print("Email : ");
         String email = scanner.nextLine();
+        
         System.out.print("Mot de passe : ");
         String password = scanner.nextLine();
-
-        Employee newEmployee = new Employee(id, name, email, password);
-        notificationService.addEmployee(newEmployee);
-        System.out.println("Employé ajouté avec succès !");
+        
+        try {
+            // Créer et ajouter l'employé
+            Employee newEmployee = new Employee(id, name, email, password);
+            notificationService.addEmployee(newEmployee);
+            System.out.println("Employé ajouté avec succès !");
+        } catch (Exception e) {
+            System.err.println("Erreur lors de l'ajout de l'employé : " + e.getMessage());
+        }
     }
 
     private static void handleEmployeeMenu(Employee employee) {
