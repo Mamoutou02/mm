@@ -78,9 +78,9 @@ public class Main {
             System.out.println("1. Ajouter un employé");
             System.out.println("2. Lister les employés");
             System.out.println("3. Vérifier l'abonnement d'un employé");
-            System.out.println("4. Envoyer une notification");
-            System.out.println("5. Voir l'historique des notifications envoyées");
-            System.out.println("6. Voir les notifications reçues");
+            System.out.println("4. Désabonner un employé");
+            System.out.println("5. Envoyer une notification");
+            System.out.println("6. Voir l'historique des notifications envoyées");
             System.out.println("7. Déconnexion");
             System.out.print("Choix : ");
 
@@ -100,9 +100,9 @@ public class Main {
                     break;
                 case 3:
                     System.out.print("Email de l'employé : ");
-                    String email = scanner.nextLine();
+                    String emailCheck = scanner.nextLine();
                     for (Employee emp : notificationService.getEmployees()) {
-                        if (emp.getEmail().equals(email)) {
+                        if (emp.getEmail().equals(emailCheck)) {
                             System.out.println(emp.getName() + " est " +
                                     (emp.isSubscribed() ? "abonné" : "non abonné"));
                             break;
@@ -110,16 +110,33 @@ public class Main {
                     }
                     break;
                 case 4:
+                    System.out.print("Email de l'employé à désabonner : ");
+                    String emailUnsubscribe = scanner.nextLine();
+                    boolean found = false;
+                    for (Employee emp : notificationService.getEmployees()) {
+                        if (emp.getEmail().equals(emailUnsubscribe)) {
+                            if (emp.isSubscribed()) {
+                                notificationService.adminUnsubscribeEmployee(admin, emp);
+                                System.out.println("L'employé a été désabonné avec succès.");
+                            } else {
+                                System.out.println("Cet employé n'est pas abonné.");
+                            }
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        System.out.println("Aucun employé trouvé avec cet email.");
+                    }
+                    break;
+                case 5:
                     System.out.print("Message : ");
                     String message = scanner.nextLine();
                     notificationService.notifyObservers(message, admin.getId());
                     System.out.println("Notification envoyée !");
                     break;
-                case 5:
-                    admin.showSentNotifications();
-                    break;
                 case 6:
-                    admin.showReceivedNotifications();
+                    admin.showSentNotifications();
                     break;
                 case 7:
                     return;
@@ -151,8 +168,7 @@ public class Main {
             System.out.println("1. S'abonner aux notifications");
             System.out.println("2. Se désabonner des notifications");
             System.out.println("3. Voir mes notifications");
-            System.out.println("4. Envoyer une notification");
-            System.out.println("5. Déconnexion");
+            System.out.println("4. Déconnexion");
             System.out.print("Choix : ");
 
             int choice = scanner.nextInt();
@@ -169,12 +185,6 @@ public class Main {
                     employee.showNotificationHistory();
                     break;
                 case 4:
-                    System.out.print("Message : ");
-                    String message = scanner.nextLine();
-                    notificationService.notifyObservers(message, employee.getId());
-                    System.out.println("Notification envoyée !");
-                    break;
-                case 5:
                     return;
                 default:
                     System.out.println("Choix invalide !");

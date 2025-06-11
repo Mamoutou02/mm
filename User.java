@@ -26,6 +26,10 @@ public abstract class User {
         return email;
     }
 
+    public String getPassword() {
+        return password;
+    }
+
     /**
      * Vérifie si les identifiants sont corrects
      * @param email Email de l'utilisateur

@@ -1,3 +1,4 @@
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -5,55 +6,45 @@ import java.util.List;
  * Classe représentant un administrateur du système
  */
 public class Admin extends User implements IObserver {
-    private List<String> sentNotifications;
-    private List<String> receivedNotifications;
+    private Connection connection;
 
     public Admin(String id, String name, String email, String password) {
         super(id, name, email, password);
-        this.sentNotifications = new ArrayList<>();
-        this.receivedNotifications = new ArrayList<>();
-    }
-
-    /**
-     * Ajoute une notification à l'historique des notifications envoyées
-     * @param message Le message envoyé
-     */
-    public void addSentNotification(String message) {
-        sentNotifications.add(message);
+        this.connection = DatabaseConfig.getConnection();
     }
 
     /**
      * Affiche l'historique des notifications envoyées
      */
     public void showSentNotifications() {
-        System.out.println("\nHistorique des notifications envoyées par " + name + ":");
-        if (sentNotifications.isEmpty()) {
-            System.out.println("Aucune notification envoyée");
-        } else {
-            for (int i = 0; i < sentNotifications.size(); i++) {
-                System.out.println((i + 1) + ". " + sentNotifications.get(i));
+        try {
+            PreparedStatement stmt = connection.prepareStatement(
+                "SELECT message, date_envoi FROM notifications_envoyees " +
+                "WHERE id_expediteur = ? " +
+                "ORDER BY date_envoi DESC"
+            );
+            stmt.setString(1, this.getId());
+            ResultSet rs = stmt.executeQuery();
+
+            System.out.println("\nHistorique des notifications envoyées par " + name + ":");
+            boolean hasNotifications = false;
+            while (rs.next()) {
+                hasNotifications = true;
+                String message = rs.getString("message");
+                Timestamp sentDate = rs.getTimestamp("date_envoi");
+                System.out.println("Le " + sentDate + " : " + message);
             }
+
+            if (!hasNotifications) {
+                System.out.println("Aucune notification envoyée");
+            }
+        } catch (SQLException e) {
+            System.err.println("Erreur lors de la récupération de l'historique : " + e.getMessage());
         }
     }
 
     @Override
     public void receiveNotification(String message, String sender) {
-        String notification = String.format("Message de %s : %s", sender, message);
-        receivedNotifications.add(notification);
-        System.out.println(String.format("[Admin %s] a reçu : %s", this.name, notification));
-    }
-
-    /**
-     * Affiche l'historique des notifications reçues
-     */
-    public void showReceivedNotifications() {
-        System.out.println("\nHistorique des notifications reçues par l'administrateur " + name + ":");
-        if (receivedNotifications.isEmpty()) {
-            System.out.println("Aucune notification reçue");
-        } else {
-            for (int i = 0; i < receivedNotifications.size(); i++) {
-                System.out.println((i + 1) + ". " + receivedNotifications.get(i));
-            }
-        }
+        // Les administrateurs ne reçoivent plus de notifications
     }
 } 
