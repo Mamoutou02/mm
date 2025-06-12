@@ -6,8 +6,8 @@ import jakarta.activation.*;
 public class EmailSender {
     private static final String HOST = "smtp.gmail.com";
     private static final String PORT = "587";
-    private static final String EMAIL = "sangaremoutou.360@gmail.com";  // Votre email Gmail
-    private static final String PASSWORD = "nhgq npqw ewef xtib";  // Votre mot de passe d'application Gmail
+    private static final String EMAIL = "";  // Votre email Gmail
+    private static final String PASSWORD = "";  // Votre mot de passe d'application Gmail
     private final Session session;
 
     public EmailSender() {
